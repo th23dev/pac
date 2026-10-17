@@ -38,7 +38,7 @@ def ler_pontuacao(arquivo=ARQUIVO_PONTUACAO):
     with open(ARQUIVO_PONTUACAO, 'r', encoding='utf-8') as pontuacao:
         return [pontos.strip() for pontos in pontuacao.readlines()]
 
-st.set_page_config(page_title='Login simples', layout='centered')
+st.set_page_config(page_title='Pong Rankeado', layout='centered')
 
 if 'logado' not in st.session_state:
     st.session_state.logado = False
@@ -46,8 +46,6 @@ if 'dados_usuario' not in st.session_state:
     st.session_state.dados_usuario = {}
 
 if not st.session_state.logado:
-
-    st.title('Controle de Pontuação')
 
     aba_login, aba_cadastro = st.tabs(['Login', 'Cadastro'])
 
@@ -224,7 +222,7 @@ else:
 
 
     with aba_estatisticas:
-        st.title('Estatísticas')
+        st.subheader('Estatísticas')
 
         usuarios = ler_usuarios()
         nomes = usuarios[2::3]
@@ -320,8 +318,7 @@ else:
     with aba_jogo:
         st.subheader('Pong contra o bot')
         jogador = st.session_state.dados_usuario
-        resultado = pong(data={'email': jogador['email'], 'recorde': int(jogador['pontos'])},
-                         key=f"pong_{jogador['email']}", on_resultado_change=lambda: None).resultado
+        resultado = pong(data={'email': jogador['email'], 'recorde': int(jogador['pontos'])}, key=f"pong_{jogador['email']}", on_resultado_change=lambda: None).resultado
         if isinstance(resultado, dict) and resultado.get('email') == jogador['email']:
             pontos = resultado.get('pontos')
             if type(pontos) is int and pontos > int(jogador['pontos']):
