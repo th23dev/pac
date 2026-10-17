@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from streamlit.components.v2 import component
 
+# Arquivos de armazenamento
+ARQUIVO_USUARIOS = 'usuarios.txt'
+ARQUIVO_PONTUACAO = 'pontuacao.txt'
+
 def salvar_recorde(email, pontos, arquivo):
     if type(pontos) is not int or pontos < 0:
         raise ValueError('Pontuação inválida')
@@ -18,6 +22,7 @@ def salvar_recorde(email, pontos, arquivo):
         destino.write('\n'.join(linhas) + '\n')
     return pontos
 
+
 with open(Path(__file__).with_name('pong.html'), 'r', encoding='utf-8') as arquivo_html:
     conteudo = arquivo_html.read()
 
@@ -26,9 +31,6 @@ html_jogo, _, script_jogo = conteudo.partition('<script type="module">')
 js_jogo = script_jogo.rsplit('</script>', 1)[0]
 pong = component('pong', html=html_jogo, js=js_jogo)
 
-# Arquivos de armazenamento
-ARQUIVO_USUARIOS = 'usuarios.txt'
-ARQUIVO_PONTUACAO = 'pontuacao.txt'
 
 def ler_usuarios(arquivo=ARQUIVO_USUARIOS):
     with open(ARQUIVO_USUARIOS, 'r', encoding='utf-8') as arquivo:
@@ -93,11 +95,22 @@ if not st.session_state.logado:
                     indice = usuarios.index(email)
 
                     if senha == usuarios[indice + 1]:
+                        pontuacao = ler_pontuacao()
+                        pontos = 0
+                        for i in range(0, len(pontuacao), 2):
+                            if i + 1 < len(pontuacao) and pontuacao[i] == email:
+                                pontos = int(pontuacao[i + 1])
+                                break
+                        else:
+                            pontuacao.extend([email, '0'])
+                            with open(ARQUIVO_PONTUACAO, 'w', encoding='utf-8') as arquivo:
+                                arquivo.writelines([f'{linha}\n' for linha in pontuacao])
+
                         st.session_state.dados_usuario = {
                             'email': usuarios[indice],
                             'senha': usuarios[indice + 1],
                             'nome': usuarios[indice + 2],
-                            'pontos': pontuacao[pontuacao.index(email) + 1]
+                            'pontos': pontos
                         }
                         st.session_state.logado = True
                         st.rerun()
@@ -113,9 +126,18 @@ else:
     with aba_perfil:
         st.subheader('Perfil de Usuário')
 
+        email_atual = st.session_state.dados_usuario['email']
         pontuacao = ler_pontuacao()
-        indice_pontuacao = pontuacao.index(st.session_state.dados_usuario['email'])
-        st.session_state.dados_usuario['pontos'] = pontuacao[indice_pontuacao + 1]
+        pontos = 0
+        for i in range(0, len(pontuacao), 2):
+            if i + 1 < len(pontuacao) and pontuacao[i] == email_atual:
+                pontos = int(pontuacao[i + 1])
+                break
+        else:
+            pontuacao.extend([email_atual, '0'])
+            with open(ARQUIVO_PONTUACAO, 'w', encoding='utf-8') as arquivo:
+                arquivo.writelines([f'{linha}\n' for linha in pontuacao])
+        st.session_state.dados_usuario['pontos'] = pontos
 
         with st.container(border=True):
             st.write(f"Nome: {st.session_state.dados_usuario['nome']}")
@@ -145,20 +167,32 @@ else:
                 if email in usuarios and email != st.session_state.dados_usuario['email']:
                     st.error('Email já cadastrado no sistema!')
                 else:
-                    indice = usuarios.index(st.session_state.dados_usuario['email'])        
+                    indice = usuarios.index(st.session_state.dados_usuario['email'])
                     usuarios[indice] = email
                     usuarios[indice + 1] = senha
                     usuarios[indice + 2] = nome
 
+                    email_anterior = st.session_state.dados_usuario['email']
+                    pontuacao_atual = st.session_state.dados_usuario['pontos']
                     st.session_state.dados_usuario = {
                         'email': email,
                         'senha': senha,
                         'nome': nome,
-                        'pontos': st.session_state.dados_usuario['pontos']
+                        'pontos': pontuacao_atual
                     }
 
                     with open(ARQUIVO_USUARIOS, 'w', encoding='utf-8') as arquivo:
                         arquivo.writelines([f'{linha}\n' for linha in usuarios])
+
+                    if email != email_anterior:
+                        pontuacao = ler_pontuacao()
+                        for i in range(0, len(pontuacao), 2):
+                            if i < len(pontuacao) and pontuacao[i] == email_anterior:
+                                pontuacao[i] = email
+                                with open(ARQUIVO_PONTUACAO, 'w', encoding='utf-8') as arquivo:
+                                    arquivo.writelines([f'{linha}\n' for linha in pontuacao])
+                                break
+
                     st.rerun()
 
         if st.button('Excluir Conta', use_container_width=True, type='primary'):
@@ -168,6 +202,13 @@ else:
 
             with open(ARQUIVO_USUARIOS, 'w', encoding='utf-8') as arquivo:
                 arquivo.writelines([f'{linha}\n' for linha in usuarios])
+
+            pontuacao = ler_pontuacao()
+            indice_pontuacao = next((i for i in range(0, len(pontuacao), 2) if pontuacao[i] == st.session_state.dados_usuario['email']), None)
+            if indice_pontuacao is not None:
+                del pontuacao[indice_pontuacao:indice_pontuacao+2]
+                with open(ARQUIVO_PONTUACAO, 'w', encoding='utf-8') as arquivo:
+                    arquivo.writelines([f'{linha}\n' for linha in pontuacao])
 
             st.session_state.logado = False
             st.session_state.dados_usuario = {}
