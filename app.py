@@ -1,4 +1,30 @@
 import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+from pathlib import Path
+from streamlit.components.v2 import component
+
+def salvar_recorde(email, pontos, arquivo):
+    if type(pontos) is not int or pontos < 0:
+        raise ValueError('Pontuação inválida')
+    with open(arquivo, 'r', encoding='utf-8') as origem:
+        linhas = origem.read().splitlines()
+    indice = next(i for i in range(0, len(linhas), 2) if linhas[i] == email)
+    recorde = int(linhas[indice + 1])
+    if pontos <= recorde:
+        return recorde
+    linhas[indice + 1] = str(pontos)
+    with open(arquivo, 'w', encoding='utf-8') as destino:
+        destino.write('\n'.join(linhas) + '\n')
+    return pontos
+
+with open(Path(__file__).with_name('pong.html'), 'r', encoding='utf-8') as arquivo_html:
+    conteudo = arquivo_html.read()
+
+# O Streamlit recebe o JavaScript do componente em um argumento separado.
+html_jogo, _, script_jogo = conteudo.partition('<script type="module">')
+js_jogo = script_jogo.rsplit('</script>', 1)[0]
+pong = component('pong', html=html_jogo, js=js_jogo)
 
 # Arquivos de armazenamento
 ARQUIVO_USUARIOS = 'usuarios.txt'
@@ -84,7 +110,7 @@ if not st.session_state.logado:
                     st.error('Usuário não cadastrado!')
 
 else:
-    aba_estatisticas, aba_competidores, aba_perfil = st.tabs(['Estatisticas', 'Competidores','Perfil'])
+    aba_jogo, aba_estatisticas, aba_competidores, aba_perfil = st.tabs(['Jogo','Estatisticas', 'Competidores','Perfil'])
 
     with aba_perfil:
         st.subheader('Perfil de Usuário')
@@ -203,97 +229,108 @@ else:
         usuarios = ler_usuarios()
         nomes = usuarios[2::3]
         pontuacao = ler_pontuacao()
-        pontos = [int(valor) for valor in pontuacao[1::2]]
+        dados = pd.DataFrame({
+            'Email': pontuacao[0::2],
+            'Pontos': [int(valor) for valor in pontuacao[1::2]]
+        })
+        jogadores = pd.DataFrame({'Email': usuarios[0::3], 'Nome': usuarios[2::3]})
+        dados = jogadores.merge(dados, on='Email', how='left')
+        dados['Pontos'] = dados['Pontos'].fillna(0).astype(int)
 
-        if pontos:
-            media_pontos = sum(pontos) / len(pontos)
-            maior_pontuacao = max(pontos)
+        if not dados.empty:
+            media_pontos = dados['Pontos'].mean()
+            maior_pontuacao = dados['Pontos'].max()
 
             coluna_jogadores, coluna_maximo, coluna_media, coluna_total, btn = st.columns(5)
             coluna_jogadores.metric('Jogadores', len(nomes))
-            coluna_maximo.metric('Maior pontuação', maior_pontuacao)
-            coluna_media.metric('Média de pontos', f'{media_pontos:.1f}')
-            coluna_total.metric('Total de pontos', sum(pontos))
+            coluna_maximo.metric('Maior recorde', int(maior_pontuacao))
+            coluna_media.metric('Média dos recordes', f'{media_pontos:.1f}')
+            coluna_total.metric('Com pontuação', int((dados['Pontos'] > 0).sum()))
             with btn:
                 if st.button('Atualizar'):
                     st.rerun()
 
-            st.subheader('Média e maior pontuação')
-            st.bar_chart({'Indicador': ['Média', 'Maior pontuação'],'Pontos': [media_pontos, maior_pontuacao]}, x='Indicador', y='Pontos')
+            st.subheader('Top 10 recordes')
+            ranking = dados.sort_values('Pontos', ascending=False).head(10)
+            email_atual = st.session_state.dados_usuario['email']
+            # A posição no rótulo diferencia jogadores com o mesmo nome.
+            rotulos = []
+            for posicao, nome in enumerate(ranking['Nome'], start=1):
+                rotulos.append(f'{posicao}. {nome}')
 
-            faixas = {
-                '1 a 9': sum(1 for valor in pontos if 1 <= valor < 10),
-                '10 a 19': sum(1 for valor in pontos if 10 <= valor < 20),
-                '20 ou mais': sum(1 for valor in pontos if valor >= 20)
-            }
-            st.subheader('Competidores por faixa de pontos')
-            st.vega_lite_chart({
-                'data': {
-                    'values': [
-                        {'Faixa': faixa, 'Competidores': quantidade}
-                        for faixa, quantidade in faixas.items()
-                    ]
-                },
-                'transform': [
-                    {
-                        'joinaggregate': [
-                            {'op': 'sum', 'field': 'Competidores', 'as': 'Total'}
-                        ]
-                    },
-                    {
-                        'calculate': 'datum.Competidores / datum.Total',
-                        'as': 'Percentual'
-                    }
-                ],
-                'layer': [
-                    {
-                        'mark': {'type': 'arc', 'tooltip': True},
-                        'encoding': {
-                            'theta': {
-                                'field': 'Competidores',
-                                'type': 'quantitative',
-                                'stack': 'normalize'
-                            },
-                            'color': {'field': 'Faixa', 'type': 'nominal'},
-                            'order': {
-                                'field': 'Faixa',
-                                'type': 'nominal',
-                                'sort': ['1 a 9', '10 a 19', '20 ou mais']
-                            },
-                            'tooltip': [
-                                {'field': 'Faixa', 'type': 'nominal'},
-                                {'field': 'Competidores', 'type': 'quantitative'},
-                                {
-                                    'field': 'Percentual',
-                                    'type': 'quantitative',
-                                    'format': '.1%'
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        'mark': {'type': 'text', 'radius': 100, 'color': 'white'},
-                        'encoding': {
-                            'theta': {
-                                'field': 'Competidores',
-                                'type': 'quantitative',
-                                'stack': 'normalize'
-                            },
-                            'detail': {'field': 'Faixa', 'type': 'nominal'},
-                            'order': {
-                                'field': 'Faixa',
-                                'type': 'nominal',
-                                'sort': ['0 a 9', '10 a 19', '20 ou mais']
-                            },
-                            'text': {
-                                'field': 'Percentual',
-                                'type': 'quantitative',
-                                'format': '.1%'
-                            }
-                        }
-                    }
-                ],
-                'view': {'stroke': None}
-            }, use_container_width=True)
+            fig, ax = plt.subplots()
+            ax.barh(rotulos, ranking['Pontos'])
+            ax.invert_yaxis()
+            ax.set_xlabel('Recorde (pontos)')
+            st.pyplot(fig)
+            plt.close(fig)
+
+            st.subheader('Distribuição dos recordes')
+            pontos = dados['Pontos']
+            faixas = ['0', '1 a 9', '10 a 19', '20 ou mais']
+            quantidades = [
+                (pontos == 0).sum(),
+                ((pontos >= 1) & (pontos <= 9)).sum(),
+                ((pontos >= 10) & (pontos <= 19)).sum(),
+                (pontos >= 20).sum()
+            ]
+            fig, ax = plt.subplots()
+            ax.bar(faixas, quantidades)
+            ax.set_xlabel('Recorde (pontos)')
+            ax.set_ylabel('Jogadores')
+            st.pyplot(fig)
+            plt.close(fig)
+
+            st.subheader('Seu recorde entre os jogadores')
+            recorde_atual = int(dados.loc[dados['Email'] == email_atual, 'Pontos'].iloc[0])
+            adversarios = dados.loc[dados['Email'] != email_atual, 'Pontos']
+            if not adversarios.empty:
+                categorias = ['Abaixo do seu', 'Igual ao seu', 'Acima do seu']
+                quantidades = [
+                    (adversarios < recorde_atual).sum(),
+                    (adversarios == recorde_atual).sum(),
+                    (adversarios > recorde_atual).sum()
+                ]
+                fig, ax = plt.subplots()
+                ax.bar(categorias, quantidades)
+                ax.set_title(f'Seu recorde: {recorde_atual} pontos')
+                ax.set_ylabel('Outros jogadores')
+                st.pyplot(fig)
+                plt.close(fig)
+            else:
+                st.info('Cadastre outros jogadores para comparar os recordes.')
+
+            st.subheader('Jogadores que alcançaram cada meta')
+            metas = [1, 5, 10, 20, 50]
+            quantidades = []
+            for meta in metas:
+                quantidades.append((dados['Pontos'] >= meta).sum())
+
+            fig, ax = plt.subplots()
+            ax.plot(metas, quantidades, marker='o')
+            ax.set_xticks(metas)
+            ax.set_xlabel('Meta de pontos')
+            ax.set_ylabel('Jogadores que alcançaram a meta')
+            st.pyplot(fig)
+            plt.close(fig)
         else:
             st.info('Ainda não há pontuações para exibir.')
+
+
+    with aba_jogo:
+        st.subheader('Pong contra o bot')
+        jogador = st.session_state.dados_usuario
+        resultado = pong(data={'email': jogador['email'], 'recorde': int(jogador['pontos'])},
+                         key=f"pong_{jogador['email']}", on_resultado_change=lambda: None).resultado
+        if isinstance(resultado, dict) and resultado.get('email') == jogador['email']:
+            pontos = resultado.get('pontos')
+            if type(pontos) is int and pontos > int(jogador['pontos']):
+                try:
+                    recorde = salvar_recorde(jogador['email'], pontos, ARQUIVO_PONTUACAO)
+                except (OSError, ValueError, StopIteration, IndexError):
+                    st.error('Não foi possível salvar o recorde. Tente novamente.')
+                    if st.button('Tentar salvar novamente'):
+                        st.rerun()
+                else:
+                    jogador['pontos'] = str(recorde)
+                    st.rerun()
