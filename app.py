@@ -215,6 +215,7 @@ else:
             st.rerun()
 
     with aba_competidores:
+
         with st.form('form_pesquisar', border=False):
             colunas = st.columns([8, 2])
 
@@ -228,19 +229,18 @@ else:
         # [email, senha, nome, email, senha, nome, ...].
         usuarios = ler_usuarios()
 
-        # O recorte [2::3] começa no índice 2 e pega um item a cada 3 posições:
-        # índices 2, 5, 8... Assim, cria uma lista só com os nomes.
-        nomes = usuarios[2::3]
-
         # O arquivo pontuacao.txt guarda pares [email, pontos, email, pontos, ...].
         pontuacao = ler_pontuacao()
 
+        # O recorte [2::3] começa no índice 2 e pega um item a cada 3 posições:
+        # índices 2, 5, 8... Assim, cria uma lista só com os nomes.
+        nomes = usuarios[2::3]
         # O recorte [1::2] pega os índices 1, 3, 5... e cria a lista de pontos.
         pontos = pontuacao[1::2]
-
         # A senha fica no arquivo de usuários, mas não é selecionada para a lista
         # nem exibida aqui. zip associa cada nome à pontuação da mesma posição.
         # A classificação é ordenada pela pontuação, da maior para a menor.
+        
         classificacao = sorted(zip(nomes, pontos),key=lambda competidor: int(competidor[1]),reverse=True)
 
         if buscar and pesquisa.strip():
@@ -260,7 +260,6 @@ else:
         elif buscar and pesquisa.strip():
             # Informa quando a busca não encontra nenhum competidor.
             st.info('Nenhum competidor encontrado.')
-
 
     with aba_estatisticas:
         st.subheader('Estatísticas')
@@ -288,7 +287,8 @@ else:
             with btn:
                 if st.button('Atualizar'):
                     st.rerun()
-
+            
+            #grafico1
             st.subheader('Top 10 recordes')
             ranking = dados.sort_values('Pontos', ascending=False).head(10)
             email_atual = st.session_state.dados_usuario['email']
@@ -304,6 +304,7 @@ else:
             st.pyplot(fig)
             plt.close(fig)
 
+            #grafico2
             st.subheader('Distribuição dos recordes')
             pontos = dados['Pontos']
             faixas = ['0', '1 a 9', '10 a 19', '20 ou mais']
@@ -320,6 +321,7 @@ else:
             st.pyplot(fig)
             plt.close(fig)
 
+            #grafico3
             st.subheader('Seu recorde entre os jogadores')
             recorde_atual = int(dados.loc[dados['Email'] == email_atual, 'Pontos'].iloc[0])
             adversarios = dados.loc[dados['Email'] != email_atual, 'Pontos']
@@ -339,6 +341,7 @@ else:
             else:
                 st.info('Cadastre outros jogadores para comparar os recordes.')
 
+            #grafico4
             st.subheader('Jogadores que alcançaram cada meta')
             metas = [1, 5, 10, 20, 50]
             quantidades = []
@@ -346,12 +349,53 @@ else:
                 quantidades.append((dados['Pontos'] >= meta).sum())
 
             fig, ax = plt.subplots()
-            ax.plot(metas, quantidades, marker='o')
+            ax.scatter(metas, quantidades)
+            ax.grid()
             ax.set_xticks(metas)
+            # ax.fill_between(metas, quantidades, alpha=0.3)
             ax.set_xlabel('Meta de pontos')
             ax.set_ylabel('Jogadores que alcançaram a meta')
             st.pyplot(fig)
             plt.close(fig)
+            
+            #grafico5
+            st.subheader('Concentração de pontos (Top 1)')
+            total_pontos = dados['Pontos'].sum()
+            if total_pontos > 0:
+                top_1 = dados.sort_values('Pontos', ascending=False).iloc[0]
+                pontos_top1 = top_1['Pontos']
+                nome_top1 = top_1['Nome']
+                pontos_restante = total_pontos - pontos_top1
+                
+                fig, ax = plt.subplots()
+                ax.pie(
+                    [pontos_top1, pontos_restante],
+                    labels=[f'Top 1 ({nome_top1})', 'Restante'],
+                    autopct="%1.1f%%",
+                    startangle=90,
+                    wedgeprops=dict(width=0.4)
+                )
+                ax.axis('equal')
+                st.pyplot(fig)
+                plt.close(fig)
+            
+            #grafico6
+            st.subheader('Resumo estatístico da base')
+            menor_pontuacao = dados['Pontos'].min()
+            mediana_pontos = dados['Pontos'].median()
+            
+            metricas = ['Mínimo', 'Mediana', 'Média', 'Máximo']
+            valores = [menor_pontuacao, mediana_pontos, media_pontos, maior_pontuacao]
+            
+            fig, ax = plt.subplots()
+            barras = ax.bar(metricas, valores)
+            ax.set_ylabel('Pontos')
+            for bar in barras:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height + 0.1, f'{height:.1f}', ha='center', va='bottom')
+            st.pyplot(fig)
+            plt.close(fig)
+            
         else:
             st.info('Ainda não há pontuações para exibir.')
 
@@ -359,6 +403,7 @@ else:
     with aba_jogo:
         st.subheader('Pong contra o bot')
         jogador = st.session_state.dados_usuario
+            
         resultado = pong(data={'email': jogador['email'], 'recorde': int(jogador['pontos'])}, key=f"pong_{jogador['email']}", on_resultado_change=lambda: None).resultado
         if isinstance(resultado, dict) and resultado.get('email') == jogador['email']:
             pontos = resultado.get('pontos')
