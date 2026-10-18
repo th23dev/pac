@@ -26,7 +26,6 @@ def salvar_recorde(email, pontos, arquivo):
 with open(Path(__file__).with_name('pong.html'), 'r', encoding='utf-8') as arquivo_html:
     conteudo = arquivo_html.read()
 
-# O Streamlit recebe o JavaScript do componente em um argumento separado.
 html_jogo, _, script_jogo = conteudo.partition('<script type="module">')
 js_jogo = script_jogo.rsplit('</script>', 1)[0]
 pong = component('pong', html=html_jogo, js=js_jogo)
@@ -225,21 +224,12 @@ else:
             with colunas[1]:
                 buscar = st.form_submit_button('Buscar', use_container_width=True)
 
-        # O arquivo usuarios.txt segue esta ordem repetida:
-        # [email, senha, nome, email, senha, nome, ...].
         usuarios = ler_usuarios()
 
-        # O arquivo pontuacao.txt guarda pares [email, pontos, email, pontos, ...].
         pontuacao = ler_pontuacao()
 
-        # O recorte [2::3] começa no índice 2 e pega um item a cada 3 posições:
-        # índices 2, 5, 8... Assim, cria uma lista só com os nomes.
         nomes = usuarios[2::3]
-        # O recorte [1::2] pega os índices 1, 3, 5... e cria a lista de pontos.
         pontos = pontuacao[1::2]
-        # A senha fica no arquivo de usuários, mas não é selecionada para a lista
-        # nem exibida aqui. zip associa cada nome à pontuação da mesma posição.
-        # A classificação é ordenada pela pontuação, da maior para a menor.
         
         classificacao = sorted(zip(nomes, pontos),key=lambda competidor: int(competidor[1]),reverse=True)
 
@@ -401,7 +391,7 @@ else:
 
 
     with aba_jogo:
-        st.subheader('Pong contra o bot')
+        st.subheader('Pong Rankeado')
         jogador = st.session_state.dados_usuario
             
         resultado = pong(data={'email': jogador['email'], 'recorde': int(jogador['pontos'])}, key=f"pong_{jogador['email']}", on_resultado_change=lambda: None).resultado
