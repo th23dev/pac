@@ -68,7 +68,10 @@ export default function({parentElement, data, setStateValue}) {
     }
   });
   canvas.addEventListener('keyup', event => keys.delete(event.key.toLowerCase()));
-  canvas.addEventListener('blur', () => { keys.clear(); if (running && !paused) togglePause(); });
+  canvas.addEventListener('blur', event => {
+    keys.clear();
+    if (event.relatedTarget !== pauseButton && running && !paused) togglePause();
+  });
   function movePointer(event) {
     const bounds = canvas.getBoundingClientRect();
     player = Math.max(0, Math.min(W - paddleW, (event.clientX - bounds.left) * W / bounds.width - paddleW / 2));
