@@ -231,13 +231,21 @@ else:
         nomes = usuarios[2::3]
         pontos = pontuacao[1::2]
         
-        classificacao = sorted(zip(nomes, pontos),key=lambda competidor: int(competidor[1]),reverse=True)
+        classificacao = sorted(
+            zip(nomes, pontos),
+            key=lambda competidor: int(competidor[1]),
+            reverse=True
+        )
+        classificacao = [
+            (posicao, nome, pontos)
+            for posicao, (nome, pontos) in enumerate(classificacao, start=1)
+        ]
 
         if buscar and pesquisa.strip():
             # Procura parte do nome sem diferenciar letras maiúsculas e minúsculas.
             termo = pesquisa.strip().casefold()
             classificacao = [
-                (nome, pontos) for nome, pontos in classificacao
+                (posicao, nome, pontos) for posicao, nome, pontos in classificacao
                 if termo in nome.casefold()
             ]
 
@@ -245,7 +253,7 @@ else:
         if classificacao:
             st.table([
                 {'Posição': posicao, 'Competidor': nome, 'Pontos': pontos}
-                for posicao, (nome, pontos) in enumerate(classificacao, start=1)
+                for posicao, nome, pontos in classificacao
             ])
         elif buscar and pesquisa.strip():
             # Informa quando a busca não encontra nenhum competidor.
@@ -329,7 +337,7 @@ else:
                 st.pyplot(fig)
                 plt.close(fig)
             else:
-                st.info('Cadastre outros jogadores para comparar os recordes.')
+                st.info('Jogadores insuficientes para a comparação.')
 
             #grafico4
             st.subheader('Jogadores que alcançaram cada meta')
